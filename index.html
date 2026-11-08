@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Workplace Call Simulator</title>
+<style>
+  :root { --bg:#0f1624; --card:#1a2338; --ink:#eef2fb; --muted:#9aa6c2; --gold:#ffc446; --good:#34b474; --mid:#e0a43a; --bad:#e25454; --edge:#33416a; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--ink); min-height:100vh; }
+  header { padding:20px 20px 8px; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  header p { margin:0; color:var(--muted); font-size:14px; }
+  main { padding:12px 20px 40px; max-width:720px; margin:0 auto; }
+  .menu { display:grid; gap:12px; }
+  .scenario { background:var(--card); border:1px solid #2a3554; border-radius:14px; padding:16px; cursor:pointer; text-align:left; color:var(--ink); font:inherit; }
+  .scenario:hover { border-color:var(--gold); }
+  .scenario strong { display:block; font-size:16px; margin-bottom:4px; }
+  .scenario span { color:var(--muted); font-size:14px; }
+  .panel { background:var(--card); border-radius:14px; padding:18px; }
+  .caller { font-size:13px; color:var(--gold); text-transform:uppercase; letter-spacing:.06em; margin-bottom:8px; }
+  .line { font-size:18px; line-height:1.5; margin:0 0 16px; }
+  .options { display:grid; gap:10px; }
+  .option { background:#222d48; border:1px solid var(--edge); color:var(--ink); border-radius:12px; padding:12px 14px; text-align:left; font:inherit; font-size:15px; line-height:1.4; cursor:pointer; }
+  .option:hover:not(:disabled) { border-color:var(--gold); }
+  .option:disabled { cursor:default; opacity:.75; }
+  .option.picked { border-color:var(--gold); }
+  .note { margin-top:14px; padding:12px 14px; border-radius:12px; background:#243052; font-size:15px; line-height:1.5; }
+  .tag { display:inline-block; font-size:12px; font-weight:700; padding:3px 8px; border-radius:999px; margin-bottom:6px; }
+  .tag.good { background:var(--good); color:#06170e; }
+  .tag.mid { background:var(--mid); color:#1e1302; }
+  .tag.bad { background:var(--bad); color:#fff; }
+  .box { margin-top:16px; padding:14px; border-radius:12px; background:#1f2a46; border:1px dashed var(--edge); }
+  .box h3 { margin:0 0 8px; font-size:15px; color:var(--gold); }
+  .box p { margin:6px 0; font-size:14px; line-height:1.5; }
+  textarea { width:100%; min-height:70px; background:#0f1624; color:var(--ink); border:1px solid var(--edge); border-radius:10px; padding:10px; font:inherit; font-size:15px; }
+  select { background:#0f1624; color:var(--ink); border:1px solid var(--edge); border-radius:8px; padding:7px; font:inherit; }
+  .hint { color:var(--muted); font-size:13px; }
+  .actions { margin-top:16px; display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  .btn { background:var(--gold); color:#1e1302; border:0; border-radius:10px; padding:11px 18px; font:inherit; font-weight:700; cursor:pointer; }
+  .btn.ghost { background:transparent; color:var(--ink); border:1px solid var(--edge); }
+  .btn.small { padding:8px 12px; font-size:14px; }
+  .progress { color:var(--muted); font-size:13px; margin-bottom:10px; }
+  .score { font-size:44px; font-weight:800; color:var(--gold); margin:8px 0; }
+  .tip { margin-top:14px; color:var(--muted); font-size:15px; line-height:1.5; }
+  .hidden { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Workplace Call Simulator</h1>
+  <p>Practise real work calls at your own pace. Mistakes are part of learning.</p>
+</header>
+<main>
+  <section id="menu" class="menu"></section>
+
+  <section id="play" class="panel hidden">
+    <div class="progress" id="progress"></div>
+    <div class="caller" id="caller"></div>
+    <p class="line" id="line"></p>
+    <div class="options" id="options"></div>
+    <div id="feedback" class="note hidden"></div>
+
+    <div id="practice" class="box hidden">
+      <h3>Practise it yourself</h3>
+      <p class="hint">Type your own reply below. We'll check the grammar and suggest gentle fixes.</p>
+      <textarea id="typed" placeholder="Type your reply here..."></textarea>
+      <div class="actions">
+        <button class="btn small" id="checkGrammar">Check my grammar</button>
+      </div>
+      <div id="grammarOut" class="note hidden"></div>
+    </div>
+
+    <div id="speak" class="box hidden">
+      <h3>Say it out loud</h3>
+      <p class="hint">Read this line aloud. Works best in Chrome or Edge.</p>
+      <p id="target" style="font-size:16px"></p>
+      <div class="actions">
+        <select id="accent">
+          <option value="en-US">English (US)</option>
+          <option value="en-GB">English (UK)</option>
+          <option value="en-IN">English (India)</option>
+        </select>
+        <button class="btn small" id="listen">Start speaking</button>
+      </div>
+      <div id="speakOut" class="note hidden"></div>
+    </div>
+
+    <div class="actions">
+      <button class="btn hidden" id="next">Next</button>
+      <button class="btn ghost" id="quit">Back to scenarios</button>
+    </div>
+  </section>
+
+  <section id="result" class="panel hidden">
+    <div class="caller">Well done for finishing</div>
+    <div class="score" id="score"></div>
+    <p class="line" id="summary"></p>
+    <p class="tip" id="tip"></p>
+    <div class="actions">
+      <button class="btn" id="again">Try again</button>
+      <button class="btn ghost" id="back">Choose another scenario</button>
+    </div>
+  </section>
+</main>
+
+<script>
+const SCENARIOS = [
+  {
+    id: "client-delay", title: "Explain a delay to a US client",
+    desc: "A client is unhappy that a release slipped.", caller: "Client, US timezone",
+    steps: [
+      { say: "We were told the release would be ready on Monday. Why is it still not live?",
+        options: [
+          { text: "Sorry, we ran into some issues.", score: 0, tag: "bad", note: "It's a good instinct to apologise, but the client still doesn't know what happened or when it will be fixed. Try naming the cause and the next date." },
+          { text: "The release is delayed by two days because a payment test failed. We've fixed the root cause, and QA is running final checks today. You'll have a go/no-go by 5 PM your time.", score: 2, tag: "good", note: "Excellent! You gave the cause, what's done, and a specific time. Clients trust that." },
+          { text: "It's not really our fault. The vendor was late.", score: 0, tag: "bad", note: "You're right that the vendor played a part, but blaming them shifts focus away from the fix. Name the dependency, then move to the plan." } ],
+        ref: "The release is delayed by two days because a payment test failed. We've fixed the root cause." },
+      { say: "Okay, but what guarantee do I have that it won't slip again?",
+        options: [
+          { text: "I can't guarantee anything, but we'll do our best.", score: 1, tag: "mid", note: "Good honesty. To build more trust, add one concrete change you're making." },
+          { text: "Here's what changes: daily updates until launch, and the payment test runs before every release from now on.", score: 2, tag: "good", note: "Lovely. A concrete change gives the client something solid to hold on to." },
+          { text: "Don't worry, it'll be fine.", score: 0, tag: "bad", note: "Reassurance feels nicer, but without evidence it often makes clients more anxious. Try a specific step instead." } ] }
+    ],
+    tip: "Good client calls follow three steps: say what happened, say what changes, and say what happens next. You're already on your way."
+  },
+  {
+    id: "standup-blocker", title: "Raise a blocker at standup",
+    desc: "You need something from another team, and the standup is moving on.", caller: "Team lead, daily standup",
+    steps: [
+      { say: "Anything blocking you? Let's move quickly.",
+        options: [
+          { text: "Yeah, I'm kind of stuck on something, but I think I can figure it out.", score: 0, tag: "bad", note: "It's great that you're trying to solve it yourself. But saying so without detail means the team can't help. Naming the blocker is the quick win." },
+          { text: "Yes. I'm blocked on the payment API. I need the sandbox key from the platform team. I'll follow up with them after standup.", score: 2, tag: "good", note: "Clear and to the point. You named the blocker, the dependency, and your next step in one breath." },
+          { text: "I'll talk about it later, it's not a big deal.", score: 1, tag: "mid", note: "Flagging early is a habit that will serve you well. Even small blockers are worth mentioning now." } ] },
+      { say: "Who on the platform team can unblock you?",
+        options: [
+          { text: "I don't really know. Someone there.", score: 0, tag: "bad", note: "No problem, you can find out. Asking for a name or channel usually does the trick." },
+          { text: "Ravi on the platform team owns the sandbox keys. I've messaged him, and I'll confirm by 3 PM.", score: 2, tag: "good", note: "Brilliant. A named owner and a check-in time close blockers fast." },
+          { text: "Maybe ask the manager to sort it out.", score: 1, tag: "mid", note: "Your manager can help, but finding the owner first is usually faster." } ] }
+    ],
+    tip: "In a standup, say the blocker, the owner, and when you'll check back. Everything else can wait."
+  },
+  {
+    id: "manager-deadline", title: "Push back on an unrealistic deadline",
+    desc: "Your manager wants a feature in three days. You know it needs about a week.", caller: "Manager, 1:1 call",
+    steps: [
+      { say: "I need the reporting feature done by Thursday. Can you do it?",
+        options: [
+          { text: "Yes, I'll make it work.", score: 0, tag: "bad", note: "Saying yes shows commitment, and that's a nice quality. But it sets you up to miss the date. Try pairing your answer with the constraint." },
+          { text: "I can't do it by Thursday without cutting quality. Based on the scope, it's about a week. Can we look at what's most important?", score: 2, tag: "good", note: "Excellent. You stated the constraint and opened a trade-off conversation. Well handled." },
+          { text: "That's impossible. The scope is too big.", score: 1, tag: "mid", note: "You're being honest, which matters. Softening it and offering options will help your manager say yes to the next step." } ] },
+      { say: "What can we do to get it in by Thursday?",
+        options: [
+          { text: "Nothing, sorry.", score: 0, tag: "bad", note: "It's okay to feel stuck. Offering even a small option keeps the conversation going." },
+          { text: "We can ship the core export by Thursday and add the charts next week. Would that work for the client?", score: 2, tag: "good", note: "A smart middle path. Your manager now has something concrete to decide on." },
+          { text: "Maybe I can work late to finish it.", score: 0, tag: "bad", note: "Your effort is appreciated, but working late can hide the real problem. A smaller scope is a healthier answer." } ] }
+    ],
+    tip: "When you push back, state the constraint, offer a smaller version, and ask a question. That keeps you in the conversation."
+  },
+  {
+    id: "bug-report", title: "Explain a bug to a non-technical stakeholder",
+    desc: "A sales lead asks why customers see the wrong price.", caller: "Sales lead, phone call",
+    steps: [
+      { say: "Customers are seeing the wrong price. What's going on?",
+        options: [
+          { text: "It's a caching issue in the pricing service with the currency conversion layer.", score: 0, tag: "bad", note: "Technically spot on! But the sales lead needs the impact, not the mechanism. Try translating it into what customers see." },
+          { text: "Some customers see an old price for about an hour after a change. We've found why, and a fix goes out today.", score: 2, tag: "good", note: "Wonderful. Plain language, the impact, and a timeline. That's exactly what a non-technical listener needs." },
+          { text: "I don't know, I'll look into it.", score: 0, tag: "bad", note: "It's honest, and that's a start. Adding what you're doing right now would reassure the sales lead." } ] },
+      { say: "How many customers are affected? I need to tell our top accounts.",
+        options: [
+          { text: "A few, I think.", score: 0, tag: "bad", note: "A rough guess is fine to share, as long as you label it. Checking the number would make it more useful." },
+          { text: "About 120 orders in the last 24 hours. I'll send you the list of accounts by 4 PM.", score: 2, tag: "good", note: "Great! A number and a deadline let the sales lead act right away." },
+          { text: "Let me check and get back to you sometime.", score: 1, tag: "mid", note: "Good instinct. A specific time would make it even more helpful." } ] }
+    ],
+    tip: "Translate technical problems into impact and timeline. Leave out the mechanism unless they ask for it."
+  },
+  {
+    id: "meeting-handover", title: "Hand over a project to a teammate",
+    desc: "You're moving to another project and a colleague is taking over.", caller: "Colleague, handover call",
+    steps: [
+      { say: "So what do I need to know about the migration?",
+        options: [
+          { text: "Everything's in the docs. Just read them.", score: 0, tag: "bad", note: "Docs are a great start. Adding the key risks and status would make your colleague's first day much easier." },
+          { text: "Three things matter most: the migration is 70% done, the staging data is refreshed every Monday, and the risky step is the user table, so run that last.", score: 2, tag: "good", note: "Superb handover. Prioritised, specific, and it flags the risk." },
+          { text: "It's mostly done, you'll figure out the rest.", score: 0, tag: "bad", note: "You're giving them a lot of trust, which is kind. A few specifics would help them feel confident." } ] },
+      { say: "Who should I contact if something breaks?",
+        options: [
+          { text: "Just message me, I'll be around.", score: 1, tag: "mid", note: "Lovely offer. Naming the right owners for each area will help even after you've moved on." },
+          { text: "For the database, contact Meera. For the API, the platform channel. I'll stay reachable on chat for the first two weeks.", score: 2, tag: "good", note: "Fantastic close. Clear owners plus a time-limited offer of help." },
+          { text: "Figure it out, it's all written down.", score: 0, tag: "bad", note: "Let's make it a little warmer. A named contact helps a lot when something breaks at 9 PM." } ] }
+    ],
+    tip: "A good handover names the status, the risks, and who to call. Give the next owner the context you'd want yourself."
+  },
+  {
+    id: "ask-for-help", title: "Ask a senior for help",
+    desc: "You're stuck on a code review comment and need a senior's time.", caller: "Senior engineer, Slack call",
+    steps: [
+      { say: "Hey, what's up? You look stuck.",
+        options: [
+          { text: "Sorry to bother you, I know you're busy, but could you maybe look at something when you have a minute?", score: 1, tag: "mid", note: "Polite, and very kind. Adding the topic and time you need would save both of you effort." },
+          { text: "Hi! I'm stuck on the caching comment in the review. I've tried two approaches. Could you spend 15 minutes with me this afternoon?", score: 2, tag: "good", note: "Perfect. The topic, what you've tried, and a clear time make it easy to say yes." },
+          { text: "I don't understand the review. Can you explain it?", score: 0, tag: "bad", note: "It's brave to admit you're confused. Naming the exact comment and what you've tried will get you a much faster answer." } ] },
+      { say: "Sure. Which part is confusing?",
+        options: [
+          { text: "All of it, basically.", score: 0, tag: "bad", note: "That's a very honest answer. Pointing to one line of code lets your senior focus on it." },
+          { text: "Line 42, where we cache the user session. I'm not sure why the expiry is set to zero.", score: 2, tag: "good", note: "Spot on. Pinpointing the line lets your senior answer in minutes." },
+          { text: "The part about the database, I think.", score: 1, tag: "mid", note: "A good start. Naming the function or line would make it even easier to help." } ] }
+    ],
+    tip: "Ask with three things: the exact problem, what you've tried, and a time that works. You'll get faster, friendlier help."
+  },
+  {
+    id: "decline-politely", title: "Say no to extra work politely",
+    desc: "A colleague asks you to take on a task you don't have time for.", caller: "Colleague, quick call",
+    steps: [
+      { say: "Could you also take over the vendor onboarding? It shouldn't take long.",
+        options: [
+          { text: "Sure, no problem.", score: 0, tag: "bad", note: "Being helpful is a great quality. Saying yes without checking your load can lead to missed deadlines, so try checking first." },
+          { text: "I'd love to help, but my sprint is full until Friday. Could we check with our manager about priorities first?", score: 2, tag: "good", note: "Excellent. You stayed warm, stated the limit, and pointed to the right person to decide." },
+          { text: "No, I can't do that.", score: 0, tag: "bad", note: "Your boundary is valid. Adding a reason and an alternative keeps the relationship strong." } ] },
+      { say: "Okay, but I really need someone. Anyone?",
+        options: [
+          { text: "Maybe next week, if things clear up.", score: 1, tag: "mid", note: "A kind offer, but a date is more useful than 'maybe'." },
+          { text: "I can't take it on, but I can share the vendor contacts and a quick checklist to help whoever picks it up.", score: 2, tag: "good", note: "Lovely. You protected your time and still helped the team." },
+          { text: "Ask someone else.", score: 0, tag: "bad", note: "A little more warmth goes a long way. Offering a useful next step makes it easier for them." } ] }
+    ],
+    tip: "To decline well: thank them, state your limit in one line, and offer a next step."
+  },
+  {
+    id: "join-late", title: "Join a meeting late and catch up",
+    desc: "You're five minutes late to a client review and the call is already in progress.", caller: "Project lead, video call",
+    steps: [
+      { say: "Oh, you're here. We've just started the pricing section.",
+        options: [
+          { text: "Sorry, I'm late. My previous call ran over.", score: 1, tag: "mid", note: "A good honest start. Keeping it short and then focusing on the meeting is perfect." },
+          { text: "Sorry about that! I'm caught up on the previous item. What did I miss on pricing?", score: 2, tag: "good", note: "Great. A quick apology, a clear reason, and a question to catch up with." },
+          { text: "I'm here now, so let's just continue.", score: 0, tag: "bad", note: "You're keen to move on, which is nice. A quick catch-up question helps you join without guessing." } ] },
+      { say: "Here's the summary so far: we're deciding the discount tier.",
+        options: [
+          { text: "Okay.", score: 0, tag: "bad", note: "A short reply is fine, but adding one question will show you're engaged." },
+          { text: "Thanks for the summary. Are we choosing between the two tiers, or is there a third option on the table?", score: 2, tag: "good", note: "Thoughtful and engaged. You clarified the choice and showed interest." },
+          { text: "Which tier do you recommend?", score: 1, tag: "mid", note: "Good question. Confirming what's on the table first can help you give a better answer." } ] }
+    ],
+    tip: "Joining late? Apologise briefly, then ask one question to catch up. Don't rehash the whole meeting."
+  },
+  {
+    id: "give-feedback", title: "Give constructive feedback to a teammate",
+    desc: "A teammate's pull request had several issues. You want to help without discouraging them.", caller: "Teammate, 1:1 call",
+    steps: [
+      { say: "I saw you left comments on my pull request. Was it that bad?",
+        options: [
+          { text: "Yeah, the code was a bit messy.", score: 0, tag: "bad", note: "It's honest, but 'messy' can feel harsh. Focusing on the code and a specific change helps them improve." },
+          { text: "Not at all. Your logic is solid. I've left a few suggestions on the error handling, and I'm happy to pair on it.", score: 2, tag: "good", note: "Wonderful. You opened with the positive, gave specifics, and offered support." },
+          { text: "It's fine, I guess. Just make some changes.", score: 0, tag: "bad", note: "Being direct is useful. Adding what's working and offering help makes feedback easier to hear." } ] },
+      { say: "Okay, what should I change first?",
+        options: [
+          { text: "Everything in the review.", score: 0, tag: "bad", note: "Too much at once can feel overwhelming. Start with the most important point." },
+          { text: "Start with the error handling in the payment module. The rest are small and can wait until after merge.", score: 2, tag: "good", note: "Clear priorities make it easier for them to act. Well done." },
+          { text: "Just read my comments.", score: 1, tag: "mid", note: "Your comments are a good guide. Naming the one priority would help even more." } ] }
+    ],
+    tip: "Feedback works best when you start with what's working, name one specific change, and offer to help."
+  },
+  {
+    id: "interview-intro", title: "Introduce yourself in an interview",
+    desc: "The interviewer asks you to tell them about yourself.", caller: "Interviewer, video call",
+    steps: [
+      { say: "Thanks for joining. Can you tell me a bit about yourself?",
+        options: [
+          { text: "Well, I'm from Pune. I studied engineering and then I joined a company.", score: 1, tag: "mid", note: "Friendly and relaxed. Adding your role, a recent project, and why you're here will make it stronger." },
+          { text: "I'm a backend developer with two years of experience in payments. Recently I led a project that cut API errors by 30%. I'm excited about this role because it focuses on the same problems.", score: 2, tag: "good", note: "Excellent. You gave your role, a clear result, and a link to the job. A confident and strong opener." },
+          { text: "I'm a hard-working person who loves coding and learning new things.", score: 0, tag: "bad", note: "Being hard-working is a great trait. Backing it with one example will make it memorable." } ] },
+      { say: "What's one project you're proud of?",
+        options: [
+          { text: "I did a lot of work on the dashboard.", score: 0, tag: "bad", note: "It's a good start. Adding what you built and the result would help the interviewer see your impact." },
+          { text: "I rebuilt the reporting dashboard so that finance could export data in one click. It saved them about four hours a week.", score: 2, tag: "good", note: "Clear, specific, and measurable. That's exactly what interviewers want to hear." },
+          { text: "I don't have one.", score: 0, tag: "bad", note: "You probably have more than you think. Think of one task that helped a team or a customer, even a small one." } ] }
+    ],
+    tip: "For 'tell me about yourself', use a simple structure: your role, one proof point, and why this job."
+  }
+];
+
+const $ = (id) => document.getElementById(id);
+let current = null, stepIndex = 0, totalScore = 0, maxScore = 0, lastBest = "";
+
+// Grammar rules: pattern, friendly message
+const GRAMMAR_RULES = [
+  [/\bdiscuss about\b/i, "Small tip: 'discuss' doesn't need 'about'. Try 'discuss the issue' instead."],
+  [/\bexplain me\b/i, "Almost there! Try 'explain it to me' so the sentence flows naturally."],
+  [/\bgive me a update\b/i, "Nice effort. Use 'an update', since it starts with a vowel sound."],
+  [/\bi am knowing\b/i, "Tiny fix: say 'I know' rather than 'I am knowing'."],
+  [/\bprepone\b|\bpreponed\b/i, "This one's common in India, but in most workplaces try 'move it earlier'."],
+  [/\bdo the needful\b/i, "This is a very polite phrase, but many clients prefer 'please take care of this'."],
+  [/\bI have went\b/i, "Close! Use 'I have gone' or 'I went'."],
+  [/\bmost unique\b/i, "'Unique' already means one of a kind, so 'most unique' isn't needed."],
+  [/\b(\w+) \1\b/i, "Check for a repeated word here. It might be a typo."],
+  [/\bplease revert back\b/i, "Use 'please get back to me' or simply 'please revert'."],
+  [/(^|[.!?]\s+)i\b/, "Remember to capitalise 'I'."]
+];
+
+function showOnly(id) {
+  ["menu", "play", "result"].forEach(s => $(s).classList.add("hidden"));
+  $(id).classList.remove("hidden");
+}
+
+function renderMenu() {
+  showOnly("menu");
+  $("menu").innerHTML = SCENARIOS.map(s =>
+    `<button class="scenario" data-id="${s.id}"><strong>${s.title}</strong><span>${s.desc}</span></button>`
+  ).join("");
+  document.querySelectorAll(".scenario").forEach(b =>
+    b.addEventListener("click", () => start(b.dataset.id)));
+}
+
+function start(id) {
+  current = SCENARIOS.find(s => s.id === id);
+  stepIndex = 0; totalScore = 0;
+  maxScore = current.steps.length * 2;
+  showOnly("play");
+  renderStep();
+}
+
+function renderStep() {
+  const step = current.steps[stepIndex];
+  $("progress").textContent = `Line ${stepIndex + 1} of ${current.steps.length}`;
+  $("caller").textContent = current.caller;
+  $("line").textContent = `"${step.say}"`;
+  $("feedback").classList.add("hidden");
+  $("practice").classList.add("hidden");
+  $("speak").classList.add("hidden");
+  $("next").classList.add("hidden");
+  $("typed").value = "";
+  $("grammarOut").classList.add("hidden");
+  $("speakOut").classList.add("hidden");
+  $("options").innerHTML = step.options.map((o, i) =>
+    `<button class="option" data-i="${i}">${o.text}</button>`).join("");
+  document.querySelectorAll(".option").forEach(b =>
+    b.addEventListener("click", () => choose(parseInt(b.dataset.i, 10))));
+}
+
+function choose(i) {
+  const step = current.steps[stepIndex];
+  const opt = step.options[i];
+  totalScore += opt.score;
+  document.querySelectorAll(".option").forEach((b, idx) => {
+    b.disabled = true;
+    if (idx === i) b.classList.add("picked");
+  });
+  const label = { good: "Great choice", mid: "Good start", bad: "Let's try a stronger one" }[opt.tag];
+  $("feedback").innerHTML = `<span class="tag ${opt.tag}">${label}</span><div>${opt.note}</div>`;
+  $("feedback").classList.remove("hidden");
+  lastBest = step.ref || step.options.find(o => o.score === 2).text;
+  $("target").textContent = `"${lastBest}"`;
+  $("practice").classList.remove("hidden");
+  $("speak").classList.remove("hidden");
+  const last = stepIndex === current.steps.length - 1;
+  $("next").textContent = last ? "See my results" : "Next line";
+  $("next").classList.remove("hidden");
+}
+
+function checkGrammar() {
+  const text = $("typed").value.trim();
+  const out = $("grammarOut");
+  out.classList.remove("hidden");
+  if (!text) { out.innerHTML = "Type a reply first, then press the button. Every attempt helps you learn."; return; }
+  const issues = GRAMMAR_RULES.filter(([re]) => re.test(text)).map(([, msg]) => msg);
+  if (issues.length === 0) {
+    out.innerHTML = "<strong>Lovely work!</strong> No common grammar slips spotted. Keep going, you're improving.";
+  } else {
+    out.innerHTML = "<strong>Nice effort!</strong> Here are a few friendly tips:<ul>" +
+      issues.map(m => `<li>${m}</li>`).join("") + "</ul>";
+  }
+}
+
+function speakCheck() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const out = $("speakOut");
+  out.classList.remove("hidden");
+  if (!SR) {
+    out.innerHTML = "Speaking practice isn't supported in this browser. Chrome or Edge on a laptop or Android usually works best.";
+    return;
+  }
+  const rec = new SR();
+  rec.lang = $("accent").value;
+  rec.interimResults = false;
+  rec.maxAlternatives = 1;
+  out.innerHTML = "Listening... speak when you're ready.";
+  rec.onresult = (e) => {
+    const heard = e.results[0][0].transcript;
+    const norm = s => s.toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter(Boolean);
+    const target = norm(lastBest);
+    const heardSet = new Set(norm(heard));
+    const missed = target.filter(w => !heardSet.has(w));
+    const matched = target.length - missed.length;
+    const pct = Math.round((matched / target.length) * 100);
+    const cheer = pct >= 85 ? "Brilliant, that was very clear!" : pct >= 60 ? "Good job, you're getting there!" : "Nice try, every attempt builds confidence.";
+    out.innerHTML = `<strong>${cheer}</strong><p>I heard: "${heard}"</p><p>Key words matched: ${pct}%.</p>` +
+      (missed.length ? `<p>Words to practise: ${[...new Set(missed)].join(", ")}. Try saying them slowly, then the full line.</p>` : "");
+  };
+  rec.onerror = () => { out.innerHTML = "I couldn't hear that. Check your microphone permission and try again."; };
+  rec.start();
+}
+
+function finish() {
+  showOnly("result");
+  const pct = Math.round((totalScore / maxScore) * 100);
+  $("score").textContent = `${pct}%`;
+  const msg = pct >= 85 ? "Outstanding work! You're handling this like a pro." :
+              pct >= 60 ? "Solid effort. You're building good instincts." :
+              "Every call is practice. Try again and you'll see the difference.";
+  $("summary").textContent = `${msg} You scored ${totalScore} out of ${maxScore} on "${current.title}".`;
+  $("tip").textContent = "Coach tip: " + current.tip;
+}
+
+$("next").addEventListener("click", () => {
+  if (stepIndex < current.steps.length - 1) { stepIndex++; renderStep(); }
+  else finish();
+});
+$("checkGrammar").addEventListener("click", checkGrammar);
+$("listen").addEventListener("click", speakCheck);
+$("quit").addEventListener("click", renderMenu);
+$("again").addEventListener("click", () => start(current.id));
+$("back").addEventListener("click", renderMenu);
+
+renderMenu();
+</script>
+</body>
+</html>
